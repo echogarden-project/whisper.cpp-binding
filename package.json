@@ -1,7 +1,7 @@
 {
 	"name": "@echogarden/whisper.cpp-binding",
 	"version": "0.1.0",
-	"description": "Minimal whisper.cpp N-API binding. Used internally by Echogarden.",
+	"description": "Minimal whisper.cpp N-API binding. Used internally by Echogarden v3.0.0+.",
 	"author": "Rotem Dan",
 	"license": "MIT",
 	"keywords": [
