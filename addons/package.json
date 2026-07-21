@@ -1,0 +1,22 @@
+{
+	"name": "@echogarden/whisper-cpp-addon",
+	"description": "N-API wrapper addon for whisper.cpp",
+	"version": "0.1.0",
+	"main": "",
+	"private": true,
+	"scripts": {
+		"build-windows-x64": "node-gyp rebuild -arch x64 --verbose && xcopy /Y build\\Release\\*.node .\\bin",
+		"build-windows-arm64": "node-gyp rebuild -arch arm64 --verbose && xcopy /Y build\\Release\\*.node .\\bin",
+		"build-linux-x64": "node-gyp rebuild -arch x64 --verbose && cp build/Release/*.node ./bin",
+		"build-linux-arm64": "CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ node-gyp rebuild -arch arm64 --verbose && cp build/Release/*.node ./bin",
+		"build-macos-x64": "node-gyp rebuild -arch x64 --verbose && cp build/Release/*.node ./bin",
+		"build-macos-arm64": "node-gyp rebuild -arch arm64 --verbose && cp build/Release/*.node ./bin"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"node-gyp": "^13.0.1",
+		"node-addon-api": "^8.9.0"
+	},
+	"author": "Rotem Dan",
+	"license": "MIT"
+}

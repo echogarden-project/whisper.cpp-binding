@@ -1,0 +1,44 @@
+{
+	"name": "@echogarden/whisper.cpp-binding",
+	"version": "0.1.0",
+	"description": "Minimal whisper.cpp N-API binding. Used internally by Echogarden.",
+	"author": "Rotem Dan",
+	"license": "MIT",
+	"keywords": [
+		"whisper.cpp"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/echogarden-project/whisper.cpp-binding"
+	},
+	"bugs": {
+		"url": "https://github.com/echogarden-project/whisper.cpp-binding/issues"
+	},
+	"engines": {
+		"node": ">=18"
+	},
+	"os": [
+		"win32",
+		"darwin",
+		"linux"
+	],
+	"private": false,
+	"main": "./dist/WhisperCppContext.js",
+	"type": "module",
+	"files": [
+		"dist",
+		"src",
+		"addons/bin",
+		"tsconfig.json",
+		"LICENSE.md",
+		"README.md"
+	],
+	"scripts": {
+		"test": "node dist/Test.js"
+	},
+	"dependencies": {
+	},
+	"devDependencies": {
+		"@types/node": "~22.15.21"
+	}
+}
