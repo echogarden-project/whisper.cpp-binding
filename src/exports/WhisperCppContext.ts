@@ -110,17 +110,17 @@ async function getWhisperCppAddonForCurrentPlatform() {
 	let addonPath: string
 
 	if (platform === 'win32' && arch === 'x64') {
-		addonPath = '../addons/bin/whisper-cpp-wrapper-windows-x64.node'
+		addonPath = '../../addons/bin/whisper-cpp-wrapper-windows-x64.node'
 	} else if (platform === 'win32' && arch === 'arm64') {
-		addonPath = '../addons/bin/whisper-cpp-wrapper-windows-arm64.node'
+		addonPath = '../../addons/bin/whisper-cpp-wrapper-windows-arm64.node'
 	} else if (platform === 'darwin' && arch === 'x64') {
-		addonPath = '../addons/bin/whisper-cpp-wrapper-macos-x64.node'
+		addonPath = '../../addons/bin/whisper-cpp-wrapper-macos-x64.node'
 	} else if (platform === 'darwin' && arch === 'arm64') {
-		addonPath = '../addons/bin/whisper-cpp-wrapper-macos-arm64.node'
+		addonPath = '../../addons/bin/whisper-cpp-wrapper-macos-arm64.node'
 	} else if (platform === 'linux' && arch === 'x64') {
-		addonPath = '../addons/bin/whisper-cpp-wrapper-linux-x64.node'
+		addonPath = '../../addons/bin/whisper-cpp-wrapper-linux-x64.node'
 	} else if (platform === 'linux' && arch === 'arm64') {
-		addonPath = '../addons/bin/whisper-cpp-wrapper-linux-arm64.node'
+		addonPath = '../../addons/bin/whisper-cpp-wrapper-linux-arm64.node'
 	} else {
 		throw new Error(`Architecture ${platform}-${arch} is not supported by the whisper.cpp binding.`)
 	}
