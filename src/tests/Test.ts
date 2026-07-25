@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
-import { Timer } from './utilities/Timer.js'
-import { indexOfMax, yieldToEventLoop } from './utilities/Utilities.js'
-import { whisperModelIdToAlignmentHeadsPreset, WhisperCppContext, WhisperModelId } from './WhisperCppContext.js'
+import { Timer } from '../utilities/Timer.js'
+import { indexOfMax, yieldToEventLoop } from '../utilities/Utilities.js'
+import { whisperModelIdToAlignmentHeadsPreset, WhisperCppContext, WhisperModelId } from '../exports/WhisperCppContext.js'
 
 async function startTest() {
 	const timer = new Timer()
@@ -55,7 +55,7 @@ async function startTest() {
 		{
 			const samples = new Float32Array(30 * 16000)
 
-			await context.encodeSamples(samples)
+			await context.encodeSamples(samples, 4)
 
 			timer.logAndRestart(`encodeSamples`)
 		}
@@ -77,7 +77,7 @@ async function startTest() {
 
 	for (let i = 0; i < 10; i++) {
 		timer.restart()
-		await context.decodeTokens(tokens, tokens.length - 1)
+		await context.decodeTokens(tokens, tokens.length - 1, 4)
 		timer.logAndRestart(`decodeTokens ${i}`)
 
 		const logits = context.getLogits()

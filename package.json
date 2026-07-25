@@ -1,6 +1,6 @@
 {
 	"name": "@echogarden/whisper.cpp-binding",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Minimal whisper.cpp N-API binding. Used internally by Echogarden v3.0.0+.",
 	"author": "Echogarden project",
 	"license": "MIT",
@@ -26,7 +26,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"main": "./dist/WhisperCppContext.js",
+	"main": "./dist/exports/WhisperCppContext.js",
 	"type": "module",
 	"files": [
 		"dist",
@@ -37,10 +37,10 @@
 		"README.md"
 	],
 	"scripts": {
-		"test": "node dist/Test.js"
+		"test": "node dist/tests/Test.js"
 	},
 	"dependencies": {},
 	"devDependencies": {
-		"@types/node": "~22.15.21"
+		"@types/node": "~26.1.1"
 	}
 }

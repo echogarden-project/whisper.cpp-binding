@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { extendDeep } from './utilities/ObjectUtilities.js'
+import { extendDeep } from '../utilities/ObjectUtilities.js'
 
 export class WhisperCppContext {
 	modelFilePath: string | undefined
@@ -35,7 +35,7 @@ export class WhisperCppContext {
 		this.modelFilePath = options.modelFilePath
 	}
 
-	async encodeSamples(samples: Float32Array, threadCount = 4) {
+	async encodeSamples(samples: Float32Array, threadCount: number) {
 		return this.context.encodeSamples(samples, threadCount)
 	}
 
@@ -43,7 +43,7 @@ export class WhisperCppContext {
 		return this.context.encodeLogMelSpectrogram(logMelSpectrogram, melCountPerFrame, threadCount)
 	}
 
-	async decodeTokens(tokens: number[], historyPrefixLength: number, threadCount = 4) {
+	async decodeTokens(tokens: number[], historyPrefixLength: number, threadCount: number) {
 		const tokensAsInt32Array = Int32Array.from(tokens)
 
 		return this.context.decodeTokens(tokensAsInt32Array, historyPrefixLength, threadCount)
