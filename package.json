@@ -1,6 +1,6 @@
 {
 	"name": "@echogarden/whisper.cpp-binding",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "Minimal whisper.cpp N-API binding. Used internally by Echogarden v3.0.0+.",
 	"author": "Echogarden project",
 	"license": "MIT",
@@ -41,6 +41,6 @@
 	},
 	"dependencies": {},
 	"devDependencies": {
-		"@types/node": "~26.1.1"
+		"@types/node": "~26.1.2"
 	}
 }

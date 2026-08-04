@@ -17,7 +17,9 @@
 #if NAPI_HAS_THREADS
 #include <mutex>
 #endif  // NAPI_HAS_THREADS
+#include <chrono>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // VS2015 RTM has bugs with constexpr, so require min of VS2015 Update 3 (known
@@ -37,22 +39,40 @@ static_assert(sizeof(char16_t) == sizeof(wchar_t),
 #define NAPI_WIDE_TEXT(x) u##x
 #endif
 
+// Backwards-compatibility to handle the rename of this macro definition, in
+// case they are used within userland code.
+#ifdef NAPI_CPP_EXCEPTIONS
+#define NODE_ADDON_API_CPP_EXCEPTIONS
+#endif
+#if defined(NODE_ADDON_API_CPP_EXCEPTIONS) && !defined(NAPI_CPP_EXCEPTIONS)
+#define NAPI_CPP_EXCEPTIONS
+#endif
+#ifdef NAPI_DISABLE_CPP_EXCEPTIONS
+#define NODE_ADDON_API_DISABLE_CPP_EXCEPTIONS
+#endif
+#if defined(NODE_ADDON_API_DISABLE_CPP_EXCEPTIONS) &&                          \
+    !defined(NAPI_DISABLE_CPP_EXCEPTIONS)
+#define NAPI_DISABLE_CPP_EXCEPTIONS
+#endif
+
 // If C++ exceptions are not explicitly enabled or disabled, enable them
 // if exceptions were enabled in the compiler settings.
-#if !defined(NAPI_CPP_EXCEPTIONS) && !defined(NAPI_DISABLE_CPP_EXCEPTIONS)
+#if !defined(NODE_ADDON_API_CPP_EXCEPTIONS) &&                                 \
+    !defined(NODE_ADDON_API_DISABLE_CPP_EXCEPTIONS)
 #if defined(_CPPUNWIND) || defined(__EXCEPTIONS)
-#define NAPI_CPP_EXCEPTIONS
+#define NODE_ADDON_API_CPP_EXCEPTIONS
 #else
 #error Exception support not detected. \
-      Define either NAPI_CPP_EXCEPTIONS or NAPI_DISABLE_CPP_EXCEPTIONS.
+      Define either NODE_ADDON_API_CPP_EXCEPTIONS or NODE_ADDON_API_DISABLE_CPP_EXCEPTIONS.
 #endif
 #endif
 
-// If C++ NAPI_CPP_EXCEPTIONS are enabled, NODE_ADDON_API_ENABLE_MAYBE should
-// not be set
-#if defined(NAPI_CPP_EXCEPTIONS) && defined(NODE_ADDON_API_ENABLE_MAYBE)
+// If C++ NODE_ADDON_API_CPP_EXCEPTIONS are enabled, NODE_ADDON_API_ENABLE_MAYBE
+// should not be set
+#if defined(NODE_ADDON_API_CPP_EXCEPTIONS) &&                                  \
+    defined(NODE_ADDON_API_ENABLE_MAYBE)
 #error NODE_ADDON_API_ENABLE_MAYBE should not be set when \
-    NAPI_CPP_EXCEPTIONS is defined.
+    NODE_ADDON_API_CPP_EXCEPTIONS is defined.
 #endif
 
 #ifdef _NOEXCEPT
@@ -61,7 +81,7 @@ static_assert(sizeof(char16_t) == sizeof(wchar_t),
 #define NAPI_NOEXCEPT noexcept
 #endif
 
-#ifdef NAPI_CPP_EXCEPTIONS
+#ifdef NODE_ADDON_API_CPP_EXCEPTIONS
 
 // When C++ exceptions are enabled, Errors are thrown directly. There is no need
 // to return anything after the throw statements. The variadic parameter is an
@@ -78,7 +98,7 @@ static_assert(sizeof(char16_t) == sizeof(wchar_t),
 #define NAPI_THROW_IF_FAILED_VOID(env, status)                                 \
   if ((status) != napi_ok) throw Napi::Error::New(env);
 
-#else  // NAPI_CPP_EXCEPTIONS
+#else  // NODE_ADDON_API_CPP_EXCEPTIONS
 
 // When C++ exceptions are disabled, Errors are thrown as JavaScript exceptions,
 // which are pending until the callback returns to JS.  The variadic parameter
@@ -110,7 +130,7 @@ static_assert(sizeof(char16_t) == sizeof(wchar_t),
     return;                                                                    \
   }
 
-#endif  // NAPI_CPP_EXCEPTIONS
+#endif  // NODE_ADDON_API_CPP_EXCEPTIONS
 
 #ifdef NODE_ADDON_API_ENABLE_MAYBE
 #define NAPI_MAYBE_THROW_IF_FAILED(env, status, type)                          \
@@ -341,10 +361,10 @@ class BasicEnv {
   // ... occurs when comparing foo.Env() == bar.Env() or foo.Env() == nullptr
   bool operator==(const BasicEnv& other) const {
     return _env == other._env;
-  };
+  }
   bool operator==(std::nullptr_t /*other*/) const {
     return _env == nullptr;
-  };
+  }
 
 #if NAPI_VERSION > 2
   template <typename Hook, typename Arg = void>
@@ -525,6 +545,9 @@ class Value {
   bool IsDataView() const;    ///< Tests if a value is a JavaScript data view.
   bool IsBuffer() const;      ///< Tests if a value is a Node buffer.
   bool IsExternal() const;  ///< Tests if a value is a pointer to external data.
+#ifdef NODE_API_EXPERIMENTAL_HAS_SHAREDARRAYBUFFER
+  bool IsSharedArrayBuffer() const;
+#endif
 
   /// Casts to another type of `Napi::Value`, when the actual type is known or
   /// assumed.
@@ -664,6 +687,12 @@ class Date : public Value {
                   double value   ///< Number value
   );
 
+  /// Creates a new Date value from a std::chrono::system_clock::time_point.
+  static Date New(
+      napi_env env,  ///< Node-API environment
+      std::chrono::system_clock::time_point time_point  ///< Time point value
+  );
+
   static void CheckCast(napi_env env, napi_value value);
 
   Date();  ///< Creates a new _empty_ Date instance.
@@ -695,6 +724,11 @@ class String : public Name {
   /// Creates a new String value from a UTF-16 encoded C++ string.
   static String New(napi_env env,                ///< Node-API environment
                     const std::u16string& value  ///< UTF-16 encoded C++ string
+  );
+
+  /// Creates a new String value from a UTF-8 encoded C++ string view.
+  static String New(napi_env env,           ///< Node-API environment
+                    std::string_view value  ///< UTF-8 encoded C++ string view
   );
 
   /// Creates a new String value from a UTF-8 encoded C string.
@@ -771,6 +805,13 @@ class Symbol : public Name {
   );
 
   /// Creates a new Symbol value with a description.
+  static Symbol New(
+      napi_env env,  ///< Node-API environment
+      std::string_view
+          description  ///< UTF-8 encoded C++ string view describing the symbol
+  );
+
+  /// Creates a new Symbol value with a description.
   static Symbol New(napi_env env,       ///< Node-API environment
                     String description  ///< String value describing the symbol
   );
@@ -786,6 +827,9 @@ class Symbol : public Name {
 
   // Create a symbol in the global registry, UTF-8 Encoded cpp string
   static MaybeOrValue<Symbol> For(napi_env env, const std::string& description);
+
+  // Create a symbol in the global registry, UTF-8 encoded cpp string view
+  static MaybeOrValue<Symbol> For(napi_env env, std::string_view description);
 
   // Create a symbol in the global registry, C style string (null terminated)
   static MaybeOrValue<Symbol> For(napi_env env, const char* description);
@@ -841,6 +885,9 @@ class Object : public TypeTaggable {
     /// anything supported by `Object::Set`.
     template <typename ValueType>
     PropertyLValue& operator=(ValueType value);
+
+    /// Converts an L-value to a value. For convenience.
+    Value AsValue() const;
 
    private:
     PropertyLValue() = delete;
@@ -1068,7 +1115,7 @@ class Object : public TypeTaggable {
                            T* data,
                            Hint* finalizeHint) const;
 
-#ifdef NAPI_CPP_EXCEPTIONS
+#ifdef NODE_ADDON_API_CPP_EXCEPTIONS
   class const_iterator;
 
   inline const_iterator begin() const;
@@ -1080,7 +1127,7 @@ class Object : public TypeTaggable {
   inline iterator begin();
 
   inline iterator end();
-#endif  // NAPI_CPP_EXCEPTIONS
+#endif  // NODE_ADDON_API_CPP_EXCEPTIONS
 
 #if NAPI_VERSION >= 8
   /// This operation can fail in case of Proxy.[[GetPrototypeOf]] calling into
@@ -1094,6 +1141,12 @@ class Object : public TypeTaggable {
   /// https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-getprototypeof
   MaybeOrValue<bool> Seal() const;
 #endif  // NAPI_VERSION >= 8
+
+  MaybeOrValue<Object> GetPrototype() const;
+
+#ifdef NODE_API_EXPERIMENTAL_HAS_SET_PROTOTYPE
+  MaybeOrValue<bool> SetPrototype(const Object& value) const;
+#endif
 };
 
 template <typename T>
@@ -1132,7 +1185,7 @@ class Array : public Object {
   uint32_t Length() const;
 };
 
-#ifdef NAPI_CPP_EXCEPTIONS
+#ifdef NODE_ADDON_API_CPP_EXCEPTIONS
 class Object::const_iterator {
  private:
   enum class Type { BEGIN, END };
@@ -1179,7 +1232,22 @@ class Object::iterator {
 
   friend class Object;
 };
-#endif  // NAPI_CPP_EXCEPTIONS
+#endif  // NODE_ADDON_API_CPP_EXCEPTIONS
+
+#ifdef NODE_API_EXPERIMENTAL_HAS_SHAREDARRAYBUFFER
+class SharedArrayBuffer : public Object {
+ public:
+  SharedArrayBuffer();
+  SharedArrayBuffer(napi_env env, napi_value value);
+
+  static SharedArrayBuffer New(napi_env env, size_t byteLength);
+
+  static void CheckCast(napi_env env, napi_value value);
+
+  void* Data();
+  size_t ByteLength();
+};
+#endif
 
 /// A JavaScript array buffer value.
 class ArrayBuffer : public Object {
@@ -1271,7 +1339,21 @@ class TypedArray : public Object {
 
   napi_typedarray_type TypedArrayType()
       const;  ///< Gets the type of this typed-array.
-  Napi::ArrayBuffer ArrayBuffer() const;  ///< Gets the backing array buffer.
+
+  // Gets the backing `ArrayBuffer`.
+  //
+  // If this `TypedArray` is not backed by an `ArrayBuffer`, this method will
+  // terminate the process with a fatal error when using
+  // `NODE_ADDON_API_ENABLE_TYPE_CHECK_ON_AS` or exhibit undefined behavior
+  // otherwise. Use `Buffer()` instead to get the backing buffer without
+  // assuming its type.
+  Napi::ArrayBuffer ArrayBuffer() const;
+
+  // Gets the backing buffer (an `ArrayBuffer` or `SharedArrayBuffer`).
+  //
+  // Use `IsArrayBuffer()` or `IsSharedArrayBuffer()` to check the type of the
+  // backing buffer prior to casting with `As<T>()`.
+  Napi::Value Buffer() const;
 
   uint8_t ElementSize()
       const;  ///< Gets the size in bytes of one element in the array.
@@ -1365,6 +1447,32 @@ class TypedArrayOf : public TypedArray {
       ///< template parameter T.
   );
 
+#ifdef NODE_API_EXPERIMENTAL_HAS_SHAREDARRAYBUFFER
+  /// Creates a new TypedArray instance over a provided SharedArrayBuffer.
+  ///
+  /// The array type parameter can normally be omitted (because it is inferred
+  /// from the template parameter T), except when creating a "clamped" array:
+  ///
+  ///     Uint8Array::New(env, length, buffer, 0, napi_uint8_clamped_array)
+  static TypedArrayOf New(
+      napi_env env,          ///< Node-API environment
+      size_t elementLength,  ///< Length of the created array, as a number of
+                             ///< elements
+      Napi::SharedArrayBuffer
+          arrayBuffer,      ///< Backing shared array buffer instance to use
+      size_t bufferOffset,  ///< Offset into the array buffer where the
+                            ///< typed-array starts
+#if defined(NAPI_HAS_CONSTEXPR)
+      napi_typedarray_type type =
+          TypedArray::TypedArrayTypeForPrimitiveType<T>()
+#else
+      napi_typedarray_type type
+#endif
+      ///< Type of array, if different from the default array type for the
+      ///< template parameter T.
+  );
+#endif
+
   static void CheckCast(napi_env env, napi_value value);
 
   TypedArrayOf();  ///< Creates a new _empty_ TypedArrayOf instance.
@@ -1411,13 +1519,37 @@ class DataView : public Object {
                       size_t byteOffset,
                       size_t byteLength);
 
+#ifdef NODE_API_EXPERIMENTAL_HAS_SHAREDARRAYBUFFER
+  static DataView New(napi_env env, Napi::SharedArrayBuffer arrayBuffer);
+  static DataView New(napi_env env,
+                      Napi::SharedArrayBuffer arrayBuffer,
+                      size_t byteOffset);
+  static DataView New(napi_env env,
+                      Napi::SharedArrayBuffer arrayBuffer,
+                      size_t byteOffset,
+                      size_t byteLength);
+#endif
+
   static void CheckCast(napi_env env, napi_value value);
 
   DataView();  ///< Creates a new _empty_ DataView instance.
   DataView(napi_env env,
            napi_value value);  ///< Wraps a Node-API value primitive.
 
-  Napi::ArrayBuffer ArrayBuffer() const;  ///< Gets the backing array buffer.
+  // Gets the backing `ArrayBuffer`.
+  //
+  // If this `DataView` is not backed by an `ArrayBuffer`, this method will
+  // terminate the process with a fatal error when using
+  // `NODE_ADDON_API_ENABLE_TYPE_CHECK_ON_AS` or exhibit undefined behavior
+  // otherwise. Use `Buffer()` instead to get the backing buffer without
+  // assuming its type.
+  Napi::ArrayBuffer ArrayBuffer() const;
+
+  // Gets the backing buffer (an `ArrayBuffer` or `SharedArrayBuffer`).
+  //
+  // Use `IsArrayBuffer()` or `IsSharedArrayBuffer()` to check the type of the
+  // backing buffer prior to casting with `As<T>()`.
+  Napi::Value Buffer() const;
   size_t ByteOffset()
       const;  ///< Gets the offset into the buffer where the array starts.
   size_t ByteLength() const;  ///< Gets the length of the array in bytes.
@@ -1553,7 +1685,18 @@ class Promise : public Object {
 
   static void CheckCast(napi_env env, napi_value value);
 
+  Promise();
   Promise(napi_env env, napi_value value);
+
+  MaybeOrValue<Promise> Then(napi_value onFulfilled) const;
+  MaybeOrValue<Promise> Then(napi_value onFulfilled,
+                             napi_value onRejected) const;
+  MaybeOrValue<Promise> Catch(napi_value onRejected) const;
+
+  MaybeOrValue<Promise> Then(const Function& onFulfilled) const;
+  MaybeOrValue<Promise> Then(const Function& onFulfilled,
+                             const Function& onRejected) const;
+  MaybeOrValue<Promise> Catch(const Function& onRejected) const;
 };
 
 template <typename T>
@@ -1683,7 +1826,7 @@ class ObjectReference : public Reference<Object> {
   MaybeOrValue<bool> Set(const std::string& utf8name, napi_value value) const;
   MaybeOrValue<bool> Set(const std::string& utf8name, Napi::Value value) const;
   MaybeOrValue<bool> Set(const std::string& utf8name,
-                         std::string& utf8value) const;
+                         const std::string& utf8value) const;
   MaybeOrValue<bool> Set(const std::string& utf8name, bool boolValue) const;
   MaybeOrValue<bool> Set(const std::string& utf8name, double numberValue) const;
 
@@ -1811,14 +1954,15 @@ FunctionReference Persistent(Function value);
 ///
 /// ### Handling Errors Without C++ Exceptions
 ///
-/// If C++ exceptions are disabled (by defining `NAPI_DISABLE_CPP_EXCEPTIONS`)
-/// then this class does not extend `std::exception`, and APIs in the `Napi`
-/// namespace do not throw C++ exceptions when they fail. Instead, they raise
-/// _pending_ JavaScript exceptions and return _empty_ `Value`s. Calling code
-/// should check `Value::IsEmpty()` before attempting to use a returned value,
-/// and may use methods on the `Env` class to check for, get, and clear a
-/// pending JavaScript exception. If the pending exception is not cleared, it
-/// will be thrown when the native callback returns to JavaScript.
+/// If C++ exceptions are disabled (by defining
+/// `NODE_ADDON_API_DISABLE_CPP_EXCEPTIONS`) then this class does not extend
+/// `std::exception`, and APIs in the `Napi` namespace do not throw C++
+/// exceptions when they fail. Instead, they raise _pending_ JavaScript
+/// exceptions and return _empty_ `Value`s. Calling code should check
+/// `Value::IsEmpty()` before attempting to use a returned value, and may use
+/// methods on the `Env` class to check for, get, and clear a pending JavaScript
+/// exception. If the pending exception is not cleared, it will be thrown when
+/// the native callback returns to JavaScript.
 ///
 /// #### Example 1B - Throwing a JS exception
 ///
@@ -1853,10 +1997,10 @@ FunctionReference Persistent(Function value);
 /// Since the exception was cleared here, it will not be propagated as a
 /// JavaScript exception after the native callback returns.
 class Error : public ObjectReference
-#ifdef NAPI_CPP_EXCEPTIONS
+#ifdef NODE_ADDON_API_CPP_EXCEPTIONS
     ,
               public std::exception
-#endif  // NAPI_CPP_EXCEPTIONS
+#endif  // NODE_ADDON_API_CPP_EXCEPTIONS
 {
  public:
   static Error New(napi_env env);
@@ -1879,9 +2023,9 @@ class Error : public ObjectReference
 
   Object Value() const;
 
-#ifdef NAPI_CPP_EXCEPTIONS
+#ifdef NODE_ADDON_API_CPP_EXCEPTIONS
   const char* what() const NAPI_NOEXCEPT override;
-#endif  // NAPI_CPP_EXCEPTIONS
+#endif  // NODE_ADDON_API_CPP_EXCEPTIONS
 
  protected:
   /// !cond INTERNAL
@@ -2514,6 +2658,7 @@ class ObjectWrap : public InstanceWrap<T>, public Reference<Object> {
   }
 
   bool _construction_failed = true;
+  bool _finalized = false;
 };
 
 class HandleScope {
@@ -3074,8 +3219,8 @@ class AsyncProgressWorkerBase : public AsyncWorker {
 
     AsyncProgressWorkerBase* asyncprogressworker() {
       return _asyncprogressworker;
-    };
-    DataType* data() { return _data; };
+    }
+    DataType* data() { return _data; }
 
    private:
     AsyncProgressWorkerBase* _asyncprogressworker;
@@ -3234,14 +3379,14 @@ class AsyncProgressQueueWorker
 // Memory management.
 class MemoryManagement {
  public:
-  static int64_t AdjustExternalMemory(Env env, int64_t change_in_bytes);
+  static int64_t AdjustExternalMemory(BasicEnv env, int64_t change_in_bytes);
 };
 
 // Version management
 class VersionManagement {
  public:
-  static uint32_t GetNapiVersion(Env env);
-  static const napi_node_version* GetNodeVersion(Env env);
+  static uint32_t GetNapiVersion(BasicEnv env);
+  static const napi_node_version* GetNodeVersion(BasicEnv env);
 };
 
 #if NAPI_VERSION > 5

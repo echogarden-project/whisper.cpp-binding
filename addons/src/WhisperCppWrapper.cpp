@@ -1,10 +1,10 @@
-#include "../include/WhisperCppDynamicLib.h"
 #include "../include/AsyncFunctionWorker.h"
 #include "../include/Utilities.h"
+#include "../include/WhisperCppDynamicLib.h"
 
 #include <napi.h>
-#include <string>
 #include <map>
+#include <string>
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // NOTE:
@@ -20,19 +20,20 @@
 ///////////////////////////////////////////////////////////////////////////////////////////
 class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrapper> {
    private:
-
 	WhisperCppDynamicLib* lib = nullptr;
 	whisper_context* context = nullptr;
 	whisper_state* state = nullptr;
 
-	bool isInitialized = false;
+	// Log level storage passed as user data to the whisper.cpp log callback.
+	// Owned here so it lives as long as the library may invoke the callback.
+	int32_t* logLevelPtr = nullptr;
 
    public:
 	WhisperCppContextWrapper(const Napi::CallbackInfo& info)
 		: Napi::ObjectWrap<WhisperCppContextWrapper>(info) {}
 
 	// Initialization
-	Napi::Value Initialize(const Napi::CallbackInfo& info) {
+	Napi::Value initialize(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		// Read JavaScript arguments
@@ -42,12 +43,16 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		auto modelFilePath = configObject.Get("modelFilePath").As<Napi::String>().Utf8Value();
 
 		auto enableGPU = configObject.Get("enableGPU").As<Napi::Boolean>().Value();
-		auto enableFlashAttention = configObject.Get("enableFlashAttention").As<Napi::Boolean>().Value();
+		auto enableFlashAttention =
+			configObject.Get("enableFlashAttention").As<Napi::Boolean>().Value();
 		auto gpuDeviceIndex = configObject.Get("gpuDeviceIndex").As<Napi::Number>().Int32Value();
 
-		auto alignmentHeadsPresetAsInt32 = configObject.Get("alignmentHeadsPreset").As<Napi::Number>().Int32Value();
-		auto alignmentHeadsPreset = static_cast<whisper_alignment_heads_preset>(alignmentHeadsPresetAsInt32);
-		auto alignmentHeadsTopCount = configObject.Get("alignmentHeadsTopCount").As<Napi::Number>().Int32Value();
+		auto alignmentHeadsPresetAsInt32 =
+			configObject.Get("alignmentHeadsPreset").As<Napi::Number>().Int32Value();
+		auto alignmentHeadsPreset =
+			static_cast<whisper_alignment_heads_preset>(alignmentHeadsPresetAsInt32);
+		auto alignmentHeadsTopCount =
+			configObject.Get("alignmentHeadsTopCount").As<Napi::Number>().Int32Value();
 
 		auto logLevel = configObject.Get("logLevel").As<Napi::Number>().Int32Value();
 
@@ -90,7 +95,7 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 				}
 			};
 
-			auto logLevelPtr = new int32_t(logLevel);  // TODO: Ensure this is released when not needed
+			logLevelPtr = new int32_t(logLevel);
 
 			lib->whisper_log_set(whisperLogger, logLevelPtr);
 
@@ -104,16 +109,13 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 
 			return [=, this](Napi::Env env) {
 				if (!context) {
-					delete lib;
+					cleanup();
 
 					Napi::Error::New(env, "Failed to create context.").ThrowAsJavaScriptException();
 				} else if (!state) {
-					lib->whisper_free(context);
-					delete lib;
+					cleanup();
 
 					Napi::Error::New(env, "Failed to create state.").ThrowAsJavaScriptException();
-				} else {
-					isInitialized = true;
 				}
 
 				return env.Undefined();
@@ -121,7 +123,7 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		});
 	}
 
-	Napi::Value EncodeSamples(const Napi::CallbackInfo& info) {
+	Napi::Value encodeSamples(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		// Read JavaScript arguments
@@ -157,7 +159,7 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		});
 	}
 
-	Napi::Value EncodeLogMelSpectrogram(const Napi::CallbackInfo& info) {
+	Napi::Value encodeLogMelSpectrogram(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		auto melSpectrogram = info[0].As<Napi::Float32Array>();
@@ -169,7 +171,8 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 			int setMelResultCode;
 
 			setMelResultCode = lib->whisper_set_mel_with_state(
-				context, state, melSpectrogram.Data(), melSpectrogram.ElementLength() / melCount, melCount);
+				context, state, melSpectrogram.Data(), melSpectrogram.ElementLength() / melCount,
+				melCount);
 
 			int encoderResultCode = -1;
 
@@ -197,7 +200,7 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		});
 	}
 
-	Napi::Value DecodeTokens(const Napi::CallbackInfo& info) {
+	Napi::Value decodeTokens(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		// Read JavaScript arguments
@@ -221,7 +224,7 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		});
 	}
 
-	Napi::Value GetLogits(const Napi::CallbackInfo& info) {
+	Napi::Value getLogits(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		auto outputLogits = info[0].As<Napi::Float32Array>();
@@ -233,20 +236,23 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		return env.Undefined();
 	}
 
-	Napi::Value GetCrossAttentionQKsDimensions(const Napi::CallbackInfo& info) {
+	Napi::Value getCrossAttentionQKsDimensions(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		auto dimensions = lib->whisper_get_aheads_cross_QKs_dims(state);
 
 		auto dimensionsJS = Napi::BigInt64Array::New(env, 3);
-		memcpy(dimensionsJS.Data(), dimensions, 3 * sizeof(int64_t));
 
-		delete[] dimensions;
+		if (dimensions != nullptr) {
+			memcpy(dimensionsJS.Data(), dimensions, 3 * sizeof(int64_t));
+
+			delete[] dimensions;
+		}
 
 		return dimensionsJS;
 	}
 
-	Napi::Value WriteCrossAttentionQKs(const Napi::CallbackInfo& info) {
+	Napi::Value writeCrossAttentionQKs(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		auto outputData = info[0].As<Napi::Float32Array>();
@@ -260,7 +266,7 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 		});
 	}
 
-	Napi::Value GetVocabSize(const Napi::CallbackInfo& info) {
+	Napi::Value getVocabSize(const Napi::CallbackInfo& info) {
 		auto env = info.Env();
 
 		auto vocabSize = lib->whisper_n_vocab(context);
@@ -270,35 +276,58 @@ class WhisperCppContextWrapper : public Napi::ObjectWrap<WhisperCppContextWrappe
 
 	// This method is called from JavaScript only!
 	//
-	// It allows to immediately release memory for the instance.
+	// It allows to immediately release the native resources (whisper state, context,
+	// and the shared library) without waiting for the garbage collector.
+	//
+	// The C++ object itself is intentionally left intact: it's owned by the
+	// `Napi::ObjectWrap` finalizer, which deletes it once the JavaScript object is
+	// collected. Calling `delete this` here would cause a double delete.
 	// The JavaScript caller must ensure that it never calls any other method after this.
-	void Dispose(const Napi::CallbackInfo& info) { delete this; }
+	void dispose(const Napi::CallbackInfo& info) { cleanup(); }
 
-	~WhisperCppContextWrapper() {
-		if (isInitialized) {
+	~WhisperCppContextWrapper() { cleanup(); }
+
+   private:
+	// Releases all native resources: the whisper state, context, and dynamic library.
+	//
+	// Idempotent: safe to call any number of times. It's invoked from `Dispose()`
+	// (eager release from JS), from the destructor (release on GC), and from the
+	// `Initialize` failure paths.
+	void cleanup() {
+		if (state) {
 			lib->whisper_free_state(state);
-			lib->whisper_free(context);
+			state = nullptr;
 		}
 
-		state = nullptr;
-		context = nullptr;
+		if (context) {
+			lib->whisper_free(context);
+			context = nullptr;
+		}
 
-		isInitialized = false;
+		delete lib;
+		lib = nullptr;
+
+		delete logLevelPtr;
+		logLevelPtr = nullptr;
 	}
 
+   public:
 	static Napi::Object CreateNapiConstructor(Napi::Env env) {
 		return DefineClass(
 			env, "WhisperCppContextWrapper",
 			{
-				InstanceMethod("initialize", &WhisperCppContextWrapper::Initialize),
-				InstanceMethod("encodeLogMelSpectrogram", &WhisperCppContextWrapper::EncodeLogMelSpectrogram),
-				InstanceMethod("encodeSamples", &WhisperCppContextWrapper::EncodeSamples),
-				InstanceMethod("decodeTokens", &WhisperCppContextWrapper::DecodeTokens),
-				InstanceMethod("getLogits", &WhisperCppContextWrapper::GetLogits),
-				InstanceMethod("getCrossAttentionQKsDimensions", &WhisperCppContextWrapper::GetCrossAttentionQKsDimensions),
-				InstanceMethod("writeCrossAttentionQKs", &WhisperCppContextWrapper::WriteCrossAttentionQKs),
-				InstanceMethod("getVocabSize", &WhisperCppContextWrapper::GetVocabSize),
-				InstanceMethod("dispose", &WhisperCppContextWrapper::Dispose),
+				InstanceMethod("initialize", &WhisperCppContextWrapper::initialize),
+				InstanceMethod("encodeLogMelSpectrogram",
+							   &WhisperCppContextWrapper::encodeLogMelSpectrogram),
+				InstanceMethod("encodeSamples", &WhisperCppContextWrapper::encodeSamples),
+				InstanceMethod("decodeTokens", &WhisperCppContextWrapper::decodeTokens),
+				InstanceMethod("getLogits", &WhisperCppContextWrapper::getLogits),
+				InstanceMethod("getCrossAttentionQKsDimensions",
+							   &WhisperCppContextWrapper::getCrossAttentionQKsDimensions),
+				InstanceMethod("writeCrossAttentionQKs",
+							   &WhisperCppContextWrapper::writeCrossAttentionQKs),
+				InstanceMethod("getVocabSize", &WhisperCppContextWrapper::getVocabSize),
+				InstanceMethod("dispose", &WhisperCppContextWrapper::dispose),
 			});
 	}
 };

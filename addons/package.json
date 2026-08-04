@@ -1,7 +1,7 @@
 {
 	"name": "@echogarden/whisper-cpp-addon",
 	"description": "N-API wrapper addon for whisper.cpp",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"main": "",
 	"private": true,
 	"scripts": {
@@ -15,7 +15,7 @@
 	"dependencies": {},
 	"devDependencies": {
 		"node-gyp": "^13.0.1",
-		"node-addon-api": "^8.9.0"
+		"node-addon-api": "^8.9.1"
 	},
 	"author": "Rotem Dan",
 	"license": "MIT"
