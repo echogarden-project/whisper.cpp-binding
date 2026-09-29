@@ -12,7 +12,7 @@
 // This N-API binding is not a library meant for independent, general usage.
 // It's an integrated part of the Echogarden `whisper.cpp-binding` library.
 // The code assumes that all arguments are correctly provided and are 100% valid!
-// It's delibartely done for minimizing complexity on the C++ side, and ease of debugging.
+// It's deliberately done for minimizing complexity on the C++ side, and ease of debugging.
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////////////////
